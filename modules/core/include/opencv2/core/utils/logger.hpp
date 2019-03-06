@@ -25,19 +25,26 @@ namespace logging {
 @return previous logging level
 */
 CV_EXPORTS LogLevel setLogLevel(LogLevel logLevel);
+
 /** Get global logging level */
 CV_EXPORTS LogLevel getLogLevel();
 
-CV_EXPORTS void registerLogTag(cv::utils::logging::LogTag* plogtag);
+/**
+@brief Registers a LogTag. This is done automatically when using LogTagAuto.
+@details Internally, the LogTag is registered with a global singleton of LogTagManager.
+*/
+CV_EXPORTS void registerLogTag(LogTag* plogtag);
 
-CV_EXPORTS void setLogTagLevel(const char* tag, cv::utils::logging::LogLevel level);
+//! @brief Changes the log level of all LogTags having the exact name.
+CV_EXPORTS void setLogTagLevel(const char* tag, LogLevel level);
 
-CV_EXPORTS cv::utils::logging::LogLevel getLogTagLevel(const char* tag);
+//! @brief Returns the log level of the LogTag having the exact name.
+CV_EXPORTS LogLevel getLogTagLevel(const char* tag);
 
 namespace internal {
 
 /** Get global log tag */
-CV_EXPORTS cv::utils::logging::LogTag* getGlobalLogTag();
+CV_EXPORTS LogTag* getGlobalLogTag();
 
 /** Write log message */
 CV_EXPORTS void writeLogMessage(LogLevel logLevel, const char* message);
@@ -47,12 +54,12 @@ CV_EXPORTS void writeLogMessageEx(LogLevel logLevel, const char* tag, const char
 
 } // namespace
 
+//! @brief LogTagAuto is a LogTag with automatic registration in the constructor.
 struct CV_EXPORTS LogTagAuto
     : public LogTag
 {
-    const char* name;
-    LogLevel level;
-
+    //! @brief Initializes a LogTagAuto (derived from LogTag) and automatically
+    // registers with the logging system.
     LogTagAuto(const char* _name, LogLevel _level)
         : LogTag(_name, _level)
     {
@@ -73,42 +80,82 @@ struct CV_EXPORTS LogTagAuto
 # endif
 #endif
 
+/**
+@def CV_LOGTAG_PTR_CAST
+@brief Casts the given C++ expression into a const pointer to LogTag. Null pointer is allowed.
+*/
 #define CV_LOGTAG_PTR_CAST(expr) static_cast<const cv::utils::logging::LogTag*>(expr)
 
-// CV_LOGTAG_EXPAND_NAME is intended to be re-defined (undef and then define again)
-// to allows logging users to use a shorter name argument when calling
-// CV_LOG_WITH_TAG or its related macros such as CV_LOG_INFO.
-//
-// This macro is intended to modify the tag argument as a string (token), via
-// preprocessor token pasting or metaprogramming techniques. A typical usage
-// is to apply a prefix, such as
-// ...... #define CV_LOGTAG_EXPAND_NAME(tag) cv_logtag_##tag
-//
-// It is permitted to re-define to a hard-coded expression, ignoring the tag.
-// This would work identically like the CV_LOGTAG_FALLBACK macro.
-//
-// Important: When the logging macro is called with tag being NULL, a user-defined
-// CV_LOGTAG_EXPAND_NAME may expand it into cv_logtag_0, cv_logtag_NULL, or
-// cv_logtag_nullptr. Use with care. Also be mindful of C++ symbol redefinitions.
-//
-// If there is significant amount of logging code with tag being NULL, it is
-// recommended to use (re-define) CV_LOGTAG_FALLBACK to inject locally a default
-// tag at the beginning of a compilation unit, to minimize lines of code changes.
-//
+/**
+@def CV_LOGTAG_EXPAND_NAME
+@brief Allows preprocessor modification of the tag argument before using it as a C++ expression.
+
+CV_LOGTAG_EXPAND_NAME is intended to be re-defined in other compilation units to allows logging
+users to use a shorter name argument when calling CV_LOG_WITH_TAG or its related macros
+such as CV_LOG_INFO.
+
+This macro is intended to modify the tag argument as a string (token), via preprocessor token
+pasting or metaprogramming techniques. A typical usage is to apply a prefix, such as
+@code
+#define CV_LOGTAG_EXPAND_NAME(tag) cv_logtag_##tag
+@endcode
+
+It is permitted to re-define to a hard-coded expression, ignoring the tag. This would work
+identically like the CV_LOGTAG_FALLBACK macro.
+
+Important: When the logging macro is called with tag being NULL, a user-defined
+CV_LOGTAG_EXPAND_NAME may expand it into
+@code
+cv_logtag_0, cv_logtag_NULL, or cv_logtag_nullptr.
+@endcode
+Use with care. Also be mindful of C++ symbol redefinitions.
+
+If there is significant amount of logging code with tag being NULL, it is recommended to use
+(re-define) CV_LOGTAG_FALLBACK to inject locally a default tag at the beginning of a
+compilation unit, to minimize lines of code changes.
+*/
 #define CV_LOGTAG_EXPAND_NAME(tag) tag
 
-// CV_LOGTAG_FALLBACK is intended to be re-defined (undef and then define again)
-// by any other compilation units to provide a log tag when the logging statement
-// does not specify one. The macro needs to expand into a C++ expression that can
-// be static_cast into (cv::utils::logging::LogTag*). Null (nullptr) is permitted.
+/**
+@def CV_LOGTAG_FALLBACK
+@brief Specifies fallback LogTag to use when the logging statement uses NULL for tag.
+
+This macro needs to expand into a C++ expression that can be static_cast into
+@code
+(cv::utils::logging::LogTag*)
+@endcode
+. Null (nullptr) is permitted.
+*/
 #define CV_LOGTAG_FALLBACK nullptr
 
-// CV_LOGTAG_GLOBAL is the tag used when a log tag is not specified in the logging
-// statement nor the compilation unit. The macro needs to expand into a C++
-// expression that can be static_cast into (cv::utils::logging::LogTag*). Must be
-// non-null. Do not re-define.
+/**
+@def CV_LOGTAG_GLOBAL
+@brief Specifies global LogTag to use when neither the logging statement nor the
+CV_LOGTAG_FALLBACK provides a tag.
+
+This macro needs to expand into a C++ expression that can be static_cast into
+@code
+(cv::utils::logging::LogTag*)
+@endcode
+. Must be non-null. It is NOT recommended to redefine this macro in other compilation units.
+*/
 #define CV_LOGTAG_GLOBAL cv::utils::logging::internal::getGlobalLogTag()
 
+/**
+@def CV_LOG_WITH_TAG
+@brief CV_LOG_WITH_TAG is the new logging macro that allows use of LogTag for adding module
+and scope information, and to allow tag-based log level filtering threshold.
+
+For convenience, logging macros with log level hard-coded into the name and the expression
+are also available.
+
+@sa CV_LOG_FATAL
+@sa CV_LOG_ERROR
+@sa CV_LOG_WARNING
+@sa CV_LOG_INFO
+@sa CV_LOG_DEBUG
+@sa CV_LOG_VERBOSE
+*/
 #define CV_LOG_WITH_TAG(tag, msgLevel, ...) \
     for(;;) { \
         const auto cv_temp_msglevel = (cv::utils::logging::LogLevel)(msgLevel); \
@@ -138,38 +185,20 @@ struct CV_EXPORTS LogTagAuto
 
 #if CV_LOG_STRIP_LEVEL <= CV_LOG_LEVEL_INFO
 # undef CV_LOG_INFO
+// CV_LOG_INFO is disabled because of CV_LOG_STRIP_LEVEL.
 # define CV_LOG_INFO(tag, ...)
 #endif
 
 #if CV_LOG_STRIP_LEVEL <= CV_LOG_LEVEL_DEBUG
 # undef CV_LOG_DEBUG
+// CV_LOG_DEBUG is disabled because of CV_LOG_STRIP_LEVEL.
 # define CV_LOG_DEBUG(tag, ...)
 #endif
 
 #if CV_LOG_STRIP_LEVEL <= CV_LOG_LEVEL_VERBOSE
 # undef CV_LOG_VERBOSE
+// CV_LOG_VERBOSE is disabled because of CV_LOG_STRIP_LEVEL.
 # define CV_LOG_VERBOSE(tag, v, ...)
-#endif
-
-#if 0
-#define CV_LOG_FATAL(tag, ...)   for(;;) { if (cv::utils::logging::getLogLevel() < cv::utils::logging::LOG_LEVEL_FATAL) break; std::stringstream ss; ss << __VA_ARGS__; cv::utils::logging::internal::writeLogMessage(cv::utils::logging::LOG_LEVEL_FATAL, ss.str().c_str()); break; }
-#define CV_LOG_ERROR(tag, ...)   for(;;) { if (cv::utils::logging::getLogLevel() < cv::utils::logging::LOG_LEVEL_ERROR) break; std::stringstream ss; ss << __VA_ARGS__; cv::utils::logging::internal::writeLogMessage(cv::utils::logging::LOG_LEVEL_ERROR, ss.str().c_str()); break; }
-#define CV_LOG_WARNING(tag, ...) for(;;) { if (cv::utils::logging::getLogLevel() < cv::utils::logging::LOG_LEVEL_WARNING) break; std::stringstream ss; ss << __VA_ARGS__; cv::utils::logging::internal::writeLogMessage(cv::utils::logging::LOG_LEVEL_WARNING, ss.str().c_str()); break; }
-#if CV_LOG_STRIP_LEVEL <= CV_LOG_LEVEL_INFO
-#define CV_LOG_INFO(tag, ...)
-#else
-#define CV_LOG_INFO(tag, ...)    for(;;) { if (cv::utils::logging::getLogLevel() < cv::utils::logging::LOG_LEVEL_INFO) break; std::stringstream ss; ss << __VA_ARGS__; cv::utils::logging::internal::writeLogMessage(cv::utils::logging::LOG_LEVEL_INFO, ss.str().c_str()); break; }
-#endif
-#if CV_LOG_STRIP_LEVEL <= CV_LOG_LEVEL_DEBUG
-#define CV_LOG_DEBUG(tag, ...)
-#else
-#define CV_LOG_DEBUG(tag, ...)   for(;;) { if (cv::utils::logging::getLogLevel() < cv::utils::logging::LOG_LEVEL_DEBUG) break; std::stringstream ss; ss << __VA_ARGS__; cv::utils::logging::internal::writeLogMessage(cv::utils::logging::LOG_LEVEL_DEBUG, ss.str().c_str()); break; }
-#endif
-#if CV_LOG_STRIP_LEVEL <= CV_LOG_LEVEL_VERBOSE
-#define CV_LOG_VERBOSE(tag, v, ...)
-#else
-#define CV_LOG_VERBOSE(tag, v, ...) for(;;) { if (cv::utils::logging::getLogLevel() < cv::utils::logging::LOG_LEVEL_VERBOSE) break; std::stringstream ss; ss << "[VERB" << v << ":" << cv::utils::getThreadID() << "] " << __VA_ARGS__; cv::utils::logging::internal::writeLogMessage(cv::utils::logging::LOG_LEVEL_VERBOSE, ss.str().c_str()); break; }
-#endif
 #endif
 
 }}} // namespace
