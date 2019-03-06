@@ -125,6 +125,16 @@
 
 #include "umatrix.hpp"
 
+namespace
+{
+    static cv::utils::logging::LogTagAuto cv_logtag_core_ocl{ "core.ocl", cv::utils::logging::LogLevel::LOG_LEVEL_VERBOSE };
+} // namespace
+
+#ifdef CV_LOGTAG_FALLBACK
+#undef CV_LOGTAG_FALLBACK
+#endif
+#define CV_LOGTAG_FALLBACK &cv_logtag_core_ocl
+
 namespace cv { namespace ocl {
 
 #define IMPLEMENT_REFCOUNTABLE() \
